@@ -131,6 +131,47 @@ public class BookieWriteLedgerTest extends
     }
 
     /**
+     * Verify the functionality of Advanced Ledger which returns WriteLedgerHandle.
+     * WriteLedgerHandle takes entryId for addEntry, and let user manage entryId allocation.
+     * @throws Exception
+     */
+    @Test(timeout=60000)
+    public void testLedgerCreateAdv() throws Exception {
+        // Create a ledger
+        lh = bkc.createLedgerAdv(5, 3, 2, digestType, ledgerPassword);
+        LOG.info("Ledger ID: " + lh.getId());
+        for (int i = 0; i < numEntriesToWrite; i++) {
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+
+            entries1.add(entry.array());
+            lh.addEntry(i, entry.array());
+        }
+        // Start one more bookies
+        startNewBookie();
+
+        // Shutdown one bookie in the last ensemble and continue writing
+        ArrayList<BookieSocketAddress> ensemble = lh.getLedgerMetadata()
+                .getEnsembles().entrySet().iterator().next().getValue();
+        killBookie(ensemble.get(0));
+
+        int i = numEntriesToWrite;
+        numEntriesToWrite = numEntriesToWrite + 50;
+        for (; i < numEntriesToWrite; i++) {
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+
+            entries1.add(entry.array());
+            lh.addEntry(i, entry.array());
+        }
+
+        readEntries(lh, entries1);
+        lh.close();
+    }
+
+    /**
      * Verify asynchronous writing when few bookie failures in last ensemble.
      */
     @Test(timeout=60000)
@@ -191,6 +232,62 @@ public class BookieWriteLedgerTest extends
         synchronized (syncObj2) {
             while (syncObj2.counter < 1) {
                 LOG.debug("Entries counter = " + syncObj2.counter);
+                syncObj2.wait();
+            }
+            assertEquals(BKException.Code.OK, syncObj2.rc);
+        }
+
+        // reading ledger till the last entry
+        readEntries(lh, entries1);
+        readEntries(lh2, entries2);
+        lh.close();
+        lh2.close();
+    }
+
+    /**
+     * Verify Advanced asynchronous writing with entryIds in reverse order
+     */
+    @Test(timeout=60000)
+    public void testLedgerCreateAdvWithAsyncWritesWithBookieFailures()
+            throws Exception {
+        // Create ledgers
+        lh = bkc.createLedgerAdv(5, 3, 2, digestType, ledgerPassword);
+        lh2 = bkc.createLedgerAdv(5, 3, 2, digestType, ledgerPassword);
+
+        LOG.info("Ledger ID-1: " + lh.getId());
+        LOG.info("Ledger ID-2: " + lh2.getId());
+        SyncObj syncObj1 = new SyncObj();
+        SyncObj syncObj2 = new SyncObj();
+        for (int i = numEntriesToWrite-1; i >= 0; i--) {
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+            entry.position(0);
+            try {
+				entries1.add(0, entry.array());
+	            entries2.add(0, entry.array());
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+            lh.asyncAddEntry(i, entry.array(), 0, entry.capacity(), this, syncObj1);
+            lh2.asyncAddEntry(i, entry.array(), 0, entry.capacity(), this, syncObj2);
+        }
+        // Start One more bookie and shutdown one from last ensemble before reading
+        startNewBookie();
+        ArrayList<BookieSocketAddress> ensemble = lh.getLedgerMetadata()
+                .getEnsembles().entrySet().iterator().next().getValue();
+        killBookie(ensemble.get(0));
+
+        // wait for all entries to be acknowledged for the first ledger
+        synchronized (syncObj1) {
+            while (syncObj1.counter < numEntriesToWrite) {
+                syncObj1.wait();
+            }
+            assertEquals(BKException.Code.OK, syncObj1.rc);
+        }
+        // wait for all entries to be acknowledged for the second ledger
+        synchronized (syncObj2) {
+            while (syncObj2.counter < numEntriesToWrite) {
                 syncObj2.wait();
             }
             assertEquals(BKException.Code.OK, syncObj2.rc);

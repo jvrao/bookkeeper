@@ -83,6 +83,10 @@ class PendingAddOp implements WriteCallback {
         writeSet = new HashSet<Integer>(lh.distributionSchedule.getWriteSet(entryId));
     }
 
+    long getEntryId() {
+    	return this.entryId;
+    }
+
     void sendWriteRequest(int bookieIndex) {
         int flags = isRecoveryAdd ? BookieProtocol.FLAG_RECOVERY_ADD : BookieProtocol.FLAG_NONE;
 
