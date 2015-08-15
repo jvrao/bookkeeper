@@ -78,7 +78,7 @@ public class LedgerHandle {
     final static public long INVALID_ENTRY_ID = BookieProtocol.INVALID_ENTRY_ID;
 
     final AtomicInteger blockAddCompletions = new AtomicInteger(0);
-    final Queue<PendingAddOp> pendingAddOps = new ConcurrentLinkedQueue<PendingAddOp>();
+    Queue<PendingAddOp> pendingAddOps;
 
     final Counter ensembleChangeCounter;
     final Counter lacUpdateHitsCounter;
@@ -89,6 +89,7 @@ public class LedgerHandle {
             throws GeneralSecurityException, NumberFormatException {
         this.bk = bk;
         this.metadata = metadata;
+        this.pendingAddOps = new ConcurrentLinkedQueue<PendingAddOp>();
 
         if (metadata.isClosed()) {
             lastAddConfirmed = lastAddPushed = metadata.getLastEntryId();
@@ -458,6 +459,23 @@ public class LedgerHandle {
     }
 
     /**
+     * Add entry synchronously to an open ledger. This can be used only with
+     * {@link LedgerHandleAdv()} returned through ledgers created with {@link
+     * CreateLedgerAdv()}.
+     *
+     *
+     * @param entryId
+     *            entryId to be added
+     * @param data
+     *            array of bytes to be written to the ledger
+     * @return the entryId of the new inserted entry
+     */
+    long addEntry(final long entryId, byte[] data) throws InterruptedException, BKException {
+        LOG.error("To use this feature Ledger must be created with createLedgerAdv() interface.");
+        throw BKException.create(BKException.Code.IllegalOpException);
+    }
+
+    /**
      * Add entry synchronously to an open ledger.
      *
      * @param data
@@ -487,6 +505,27 @@ public class LedgerHandle {
     }
 
     /**
+     * Add entry synchronously to an open ledger. This can be used only with
+     * {@link LedgerHandleAdv()} returned through ledgers created with {@link
+     * CreateLedgerAdv()}.
+     *
+     * @param entryId
+     *            entryId to be added.
+     * @param data
+     *            array of bytes to be written to the ledger
+     * @param offset
+     *            offset from which to take bytes from data
+     * @param length
+     *            number of bytes to take from data
+     * @return entryId
+     */
+    long addEntry(final long entryId, byte[] data, int offset, int length) throws InterruptedException,
+            BKException {
+        LOG.error("To use this feature Ledger must be created with createLedgerAdv() interface.");
+        throw BKException.create(BKException.Code.IllegalOpException);
+    }
+
+    /**
      * Add entry asynchronously to an open ledger.
      *
      * @param data
@@ -499,6 +538,26 @@ public class LedgerHandle {
     public void asyncAddEntry(final byte[] data, final AddCallback cb,
                               final Object ctx) {
         asyncAddEntry(data, 0, data.length, cb, ctx);
+    }
+
+    /**
+     * Add entry asynchronously to an open ledger. This can be used only with
+     * {@link LedgerHandleAdv()} returned through ledgers created with {@link
+     * CreateLedgerAdv()}.
+     *
+     * @param entryId
+     *            entryId to be added
+     * @param data
+     *            array of bytes to be written
+     * @param cb
+     *            object implementing callbackinterface
+     * @param ctx
+     *            some control object
+     */
+    void asyncAddEntry(final long entryId, final byte[] data, final AddCallback cb, final Object ctx)
+            throws BKException {
+        LOG.error("To use this feature Ledger must be created with createLedgerAdv() interface.");
+        cb.addComplete(BKException.Code.IllegalOpException, LedgerHandle.this, entryId, ctx);
     }
 
     /**
@@ -524,8 +583,35 @@ public class LedgerHandle {
     }
 
     /**
-     * Make a recovery add entry request. Recovery adds can add to a ledger even if
-     * it has been fenced.
+     * Add entry asynchronously to an open ledger, using an offset and range.
+     * This can be used only with {@link LedgerHandleAdv()} returned through
+     * ledgers created with {@link CreateLedgerAdv()}.
+     *
+     * @param entryId
+     *            entryId of the entry to add.
+     * @param data
+     *            array of bytes to be written
+     * @param offset
+     *            offset from which to take bytes from data
+     * @param length
+     *            number of bytes to take from data
+     * @param cb
+     *            object implementing callbackinterface
+     * @param ctx
+     *            some control object
+     * @throws ArrayIndexOutOfBoundsException
+     *             if offset or length is negative or offset and length sum to a
+     *             value higher than the length of data.
+     */
+    public void asyncAddEntry(final long entryId, final byte[] data, final int offset, final int length,
+            final AddCallback cb, final Object ctx) throws BKException {
+        LOG.error("To use this feature Ledger must be created with createLedgerAdv() interface.");
+        cb.addComplete(BKException.Code.IllegalOpException, LedgerHandle.this, entryId, ctx);
+    }
+
+    /**
+     * Make a recovery add entry request. Recovery adds can add to a ledger even
+     * if it has been fenced.
      *
      * This is only valid for bookie and ledger recovery, which may need to replicate
      * entries to a quorum of bookies to ensure data safety.
@@ -538,13 +624,14 @@ public class LedgerHandle {
         doAsyncAddEntry(op, data, offset, length, cb, ctx);
     }
 
-    private void doAsyncAddEntry(final PendingAddOp op, final byte[] data, final int offset, final int length,
-                                 final AddCallback cb, final Object ctx) {
+    void doAsyncAddEntry(final PendingAddOp op, final byte[] data, final int offset, final int length,
+                         final AddCallback cb, final Object ctx) {
+
         if (offset < 0 || length < 0
                 || (offset + length) > data.length) {
             throw new ArrayIndexOutOfBoundsException(
-                "Invalid values for offset("+offset
-                +") or length("+length+")");
+                    "Invalid values for offset(" +offset
+                    +") or length("+length+")");
         }
         throttler.acquire();
 
@@ -577,6 +664,7 @@ public class LedgerHandle {
                         cb.addComplete(BKException.Code.LedgerClosedException,
                                 LedgerHandle.this, INVALID_ENTRY_ID, ctx);
                     }
+
                     @Override
                     public String toString() {
                         return String.format("AsyncAddEntryToClosedLedger(lid=%d)", ledgerId);
@@ -682,6 +770,7 @@ public class LedgerHandle {
         }
         ReadLastConfirmedOp.LastConfirmedDataCallback innercb = new ReadLastConfirmedOp.LastConfirmedDataCallback() {
             AtomicBoolean completed = new AtomicBoolean(false);
+
             @Override
             public void readLastConfirmedDataComplete(int rc, DigestManager.RecoveryData data) {
                 if (rc == BKException.Code.OK) {
@@ -823,9 +912,15 @@ public class LedgerHandle {
         // Start from the head of the queue and proceed while there are
         // entries that have had all their responses come back
         PendingAddOp pendingAddOp;
+
         while ((pendingAddOp = pendingAddOps.peek()) != null
                && blockAddCompletions.get() == 0) {
             if (!pendingAddOp.completed) {
+                return;
+            }
+            // Check if it is the next entry in the sequence.
+            if (pendingAddOp.entryId != 0 && pendingAddOp.entryId != lastAddConfirmed + 1) {
+                LOG.debug("Head of the queue entryId: {} is not lac: {} + 1", pendingAddOp.entryId, lastAddConfirmed);
                 return;
             }
             pendingAddOps.remove();
@@ -1169,7 +1264,7 @@ public class LedgerHandle {
         }
     }
 
-    private static class SyncAddCallback implements AddCallback {
+    static class SyncAddCallback implements AddCallback {
         long entryId = -1;
 
         /**
