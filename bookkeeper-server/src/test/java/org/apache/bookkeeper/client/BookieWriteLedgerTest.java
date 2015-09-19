@@ -173,6 +173,78 @@ public class BookieWriteLedgerTest extends
     }
 
     /**
+     * Verify the functionality of Advanced Ledger which accepts ledgerId as input and returns
+     * LedgerHandleAdv. LedgerHandleAdv takes entryId for addEntry, and let
+     * user manage entryId allocation.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 60000)
+    public void testLedgerCreateAdvWithLedgerId() throws Exception {
+        // Create a ledger
+        long ledgerId = 0xABCDEF;
+        lh = bkc.createLedgerAdv(ledgerId, 5, 3, 2, digestType, ledgerPassword);
+        for (int i = 0; i < numEntriesToWrite; i++) {
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+
+            entries1.add(entry.array());
+            lh.addEntry(i, entry.array());
+        }
+        // Start one more bookies
+        startNewBookie();
+
+        // Shutdown one bookie in the last ensemble and continue writing
+        ArrayList<BookieSocketAddress> ensemble = lh.getLedgerMetadata().getEnsembles().entrySet().iterator().next()
+                .getValue();
+        killBookie(ensemble.get(0));
+
+        int i = numEntriesToWrite;
+        numEntriesToWrite = numEntriesToWrite + 50;
+        for (; i < numEntriesToWrite; i++) {
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+
+            entries1.add(entry.array());
+            lh.addEntry(i, entry.array());
+        }
+
+        readEntries(lh, entries1);
+        lh.close();
+        bkc.deleteLedger(ledgerId);
+    }
+
+    /**
+     * In a loop create/write/delete the ledger with same ledgerId through
+     * the functionality of Advanced Ledger which accepts ledgerId as input.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 60000)
+    public void testLedgerCreateAdvWithLedgerIdInLoop() throws Exception {
+        long ledgerId = 0xABCDEF;
+        for (int lc = 0; lc < 5; lc++) {
+            // Create a ledger
+            LOG.info("Iteration: {}", lc);
+            entries1.clear();
+            lh = bkc.createLedgerAdv(ledgerId, 5, 3, 2, digestType, ledgerPassword);
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                ByteBuffer entry = ByteBuffer.allocate(4);
+                entry.putInt(rng.nextInt(maxInt));
+                entry.position(0);
+                entries1.add(entry.array());
+                lh.addEntry(i, entry.array());
+            }
+            // Read and verify
+            readEntries(lh, entries1);
+            lh.close();
+            bkc.deleteLedger(ledgerId);
+        }
+    }
+
+    /**
      * Verify asynchronous writing when few bookie failures in last ensemble.
      */
     @Test(timeout=60000)
@@ -573,9 +645,9 @@ public class BookieWriteLedgerTest extends
             Integer origEntry = origbb.getInt();
             ByteBuffer result = ByteBuffer.wrap(ls.nextElement().getEntry());
             LOG.debug("Length of result: " + result.capacity());
-            LOG.debug("Original entry: " + origEntry);
+            LOG.info("Original entry: " + origEntry);
             Integer retrEntry = result.getInt();
-            LOG.debug("Retrieved entry: " + retrEntry);
+            LOG.info("Retrieved entry: " + retrEntry);
             assertTrue("Checking entry " + index + " for equality", origEntry
                     .equals(retrEntry));
         }
