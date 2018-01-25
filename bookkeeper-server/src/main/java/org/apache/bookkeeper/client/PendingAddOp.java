@@ -208,7 +208,6 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
      * Initiate the add operation.
      */
     public void safeRun() {
-        hasRun = true;
         if (callbackTriggered) {
             // this should only be true if the request was failed due
             // to another request ahead in the pending queue,
@@ -232,6 +231,7 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
                 sendWriteRequest(writeSet.get(i));
             }
         } finally {
+            hasRun = true;
             writeSet.recycle();
         }
     }
@@ -401,6 +401,14 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
     }
 
     private void recycle() {
+        // Make sure refCnt is 1.
+        int refCount = toSend.refCnt();
+        if (refCount != 1) {
+            LOG.error("Ledger write buffer ref count discrepancy during recyle: L{} E{} refCount expected: 1, actual {}",
+                    lh.getId(), entryId, refCount);
+            // Instead throw runtime exception??
+            assert(false);
+        }
         entryId = LedgerHandle.INVALID_ENTRY_ID;
         currentLedgerLength = -1;
         ReferenceCountUtil.release(toSend);

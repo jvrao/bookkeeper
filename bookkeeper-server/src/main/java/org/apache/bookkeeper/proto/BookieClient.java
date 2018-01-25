@@ -263,9 +263,9 @@ public class BookieClient implements PerChannelBookieClientFactory {
                 return;
             }
 
-            // Retain the buffer, since the connection could be obtained after
-            // the PendingApp might have already failed
-            toSend.retain();
+            // We are keeping reference in {@link PendingAddOp} and toSend
+            // will not get recycled until all dispatched bookie writes are back.
+            // Hence no need to hold additional reference here with toSend.retain().
 
             client.obtain(ChannelReadyForAddEntryCallback.create(
                                   this, toSend, ledgerId, entryId, addr,
