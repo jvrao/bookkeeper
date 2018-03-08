@@ -414,7 +414,7 @@ public class RegionAwareEnsemblePlacementPolicy extends RackawareEnsemblePlaceme
     @Override
     public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize,
             Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble,
-            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies)
+            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies, boolean replicationContext)
             throws BKException.BKNotEnoughBookiesException {
         rwLock.readLock().lock();
         try {

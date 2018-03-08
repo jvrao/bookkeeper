@@ -85,8 +85,8 @@ import org.apache.bookkeeper.stats.StatsLogger;
  * bookie changes, the ensemble placement policy will be notified with new list of bookies via
  * {@link #onClusterChanged(Set, Set)}. The implementation of the ensemble placement policy will react on those
  * changes to build new network topology. Subsequent operations like {@link #newEnsemble(int, int, int, Map, Set)} or
- * {@link #replaceBookie(int, int, int, Map, Collection, BookieSocketAddress, Set)} hence can operate on the new
- * network topology.
+ * {@link #replaceBookie(int, int, int, Map, Collection, BookieSocketAddress, Set, boolean)} hence can operate on
+ * the new network topology.
  *
  * <p>Both {@link RackawareEnsemblePlacementPolicy} and {@link RegionAwareEnsemblePlacementPolicy} are
  * {@link TopologyAwareEnsemblePlacementPolicy}s. They build a {@link org.apache.bookkeeper.net.NetworkTopology} on
@@ -224,7 +224,8 @@ public interface EnsemblePlacementPolicy {
      *
      * <p>The implementation should take actions when the cluster view is changed. So subsequent
      * {@link #newEnsemble(int, int, int, Map, Set)} and
-     * {@link #replaceBookie(int, int, int, Map, Collection, BookieSocketAddress, Set)} can choose proper bookies.
+     * {@link #replaceBookie(int, int, int, Map, Collection, BookieSocketAddress, Set, boolean)} can
+     * choose proper bookies.
      *
      * @param writableBookies
      *          All the bookies in the cluster available for write/read.
@@ -278,6 +279,8 @@ public interface EnsemblePlacementPolicy {
      * @param currentEnsemble the value of currentEnsemble
      * @param bookieToReplace bookie to replace
      * @param excludeBookies bookies that should not be considered as candidate.
+     * @param inReplicationContext true if called from replication context to give equal weightage to the entire cluster
+     *                             and no preference to local network location (rack)
      * @throws BKNotEnoughBookiesException
      * @return the org.apache.bookkeeper.net.BookieSocketAddress
      */
@@ -287,7 +290,8 @@ public interface EnsemblePlacementPolicy {
                                       Map<String, byte[]> customMetadata,
                                       Set<BookieSocketAddress> currentEnsemble,
                                       BookieSocketAddress bookieToReplace,
-                                      Set<BookieSocketAddress> excludeBookies)
+                                      Set<BookieSocketAddress> excludeBookies,
+                                      boolean inReplicationContext)
         throws BKNotEnoughBookiesException;
 
     /**

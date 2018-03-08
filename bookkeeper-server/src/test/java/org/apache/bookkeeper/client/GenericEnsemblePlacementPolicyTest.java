@@ -59,13 +59,13 @@ public class GenericEnsemblePlacementPolicyTest extends BookKeeperClusterTestCas
         @Override
         public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize,
             int ackQuorumSize, Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble,
-            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies)
+            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies, boolean replicationContext)
             throws BKException.BKNotEnoughBookiesException {
             new Exception("replaceBookie " + ensembleSize + "," + customMetadata).printStackTrace();
             assertNotNull(customMetadata);
             customMetadataOnReplaceBookieStack.add(customMetadata);
             return super.replaceBookie(ensembleSize, writeQuorumSize, ackQuorumSize, customMetadata,
-                currentEnsemble, bookieToReplace, excludeBookies);
+                currentEnsemble, bookieToReplace, excludeBookies, replicationContext);
         }
 
         @Override

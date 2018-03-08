@@ -82,7 +82,8 @@ public class LocalBookieEnsemblePlacementPolicy implements EnsemblePlacementPoli
     @Override
     public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize,
         java.util.Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble,
-        BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies)
+        BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies,
+        boolean replicationContext)
             throws BKNotEnoughBookiesException {
         throw new BKNotEnoughBookiesException();
     }

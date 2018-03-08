@@ -962,14 +962,15 @@ public class BookKeeperAdmin implements AutoCloseable {
             }
         }
         return getReplacementBookiesByIndexes(
-                lh, ensemble, bookieIndexesToRereplicate, Optional.of(bookiesToRereplicate));
+                lh, ensemble, bookieIndexesToRereplicate, Optional.of(bookiesToRereplicate), false);
     }
 
     private Map<Integer, BookieSocketAddress> getReplacementBookiesByIndexes(
                 LedgerHandle lh,
                 List<BookieSocketAddress> ensemble,
                 Set<Integer> bookieIndexesToRereplicate,
-                Optional<Set<BookieSocketAddress>> excludedBookies)
+                Optional<Set<BookieSocketAddress>> excludedBookies,
+                boolean forReplication)
             throws BKException.BKNotEnoughBookiesException {
         // target bookies to replicate
         Map<Integer, BookieSocketAddress> targetBookieAddresses =
@@ -997,7 +998,8 @@ public class BookKeeperAdmin implements AutoCloseable {
                             lh.getLedgerMetadata().getCustomMetadata(),
                             new HashSet<>(ensemble),
                             oldBookie,
-                            bookiesToExclude);
+                            bookiesToExclude,
+                            forReplication);
             targetBookieAddresses.put(bookieIndex, newBookie);
             bookiesToExclude.add(newBookie);
         }
@@ -1029,7 +1031,7 @@ public class BookKeeperAdmin implements AutoCloseable {
         Optional<Set<BookieSocketAddress>> excludedBookies = Optional.empty();
         Map<Integer, BookieSocketAddress> targetBookieAddresses =
                 getReplacementBookiesByIndexes(lh, ledgerFragment.getEnsemble(),
-                        ledgerFragment.getBookiesIndexes(), excludedBookies);
+                        ledgerFragment.getBookiesIndexes(), excludedBookies, true);
         replicateLedgerFragment(lh, ledgerFragment, targetBookieAddresses);
     }
 

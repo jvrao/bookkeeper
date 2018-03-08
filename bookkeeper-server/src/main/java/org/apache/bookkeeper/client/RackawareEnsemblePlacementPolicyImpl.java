@@ -561,7 +561,8 @@ public class RackawareEnsemblePlacementPolicyImpl extends TopologyAwareEnsembleP
     @Override
     public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize,
             Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble,
-            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies)
+            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies,
+            boolean replicationContext)
             throws BKNotEnoughBookiesException {
         rwLock.readLock().lock();
         try {
@@ -590,7 +591,8 @@ public class RackawareEnsemblePlacementPolicyImpl extends TopologyAwareEnsembleP
                     networkLocationsToBeExcluded,
                     excludeNodes,
                     TruePredicate.INSTANCE,
-                    EnsembleForReplacementWithNoConstraints.INSTANCE);
+                    EnsembleForReplacementWithNoConstraints.INSTANCE,
+                    replicationContext);
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Bookie {} is chosen to replace bookie {}.", candidate, bn);
             }
@@ -649,26 +651,31 @@ public class RackawareEnsemblePlacementPolicyImpl extends TopologyAwareEnsembleP
                                                    Set<String> excludeRacks,
                                                    Set<Node> excludeBookies,
                                                    Predicate<BookieNode> predicate,
-                                                   Ensemble<BookieNode> ensemble)
+                                                   Ensemble<BookieNode> ensemble,
+                                                   boolean replicationContext)
             throws BKNotEnoughBookiesException {
-        // first attempt to select one from local rack
-        try {
-            return selectRandomFromRack(networkLoc, excludeBookies, predicate, ensemble);
-        } catch (BKNotEnoughBookiesException e) {
-            if (isWeighted) {
-                // if weight based selection is enabled, randomly select one from the whole cluster
-                // based on weights and ignore the provided <tt>excludeRacks</tt>.
-                // randomly choose one from whole cluster, ignore the provided predicate.
-                return selectRandom(1, excludeBookies, predicate, ensemble).get(0);
-            } else {
-                // if weight based selection is disabled, and there is no enough bookie from local rack,
-                // select bookies from the whole cluster and exclude the racks specified at <tt>excludeRacks</tt>.
-                return selectFromNetworkLocation(excludeRacks, excludeBookies, predicate, ensemble);
+        if (!replicationContext) {
+            // Not replication context, first attempt to select one from local rack
+            try {
+                return selectRandomFromRack(networkLoc, excludeBookies, predicate, ensemble);
+            } catch (BKNotEnoughBookiesException e) {
+                LOG.warn("Could not find a replacement bookie on local rack {}", networkLoc);
             }
         }
 
+        // Either we are in the replication context or could not find a replacement bookie
+        // from local rack, find a replacement from the cluster.
+        if (isWeighted) {
+            // if weight based selection is enabled, randomly select one from the whole cluster
+            // based on weights and ignore the provided <tt>excludeRacks</tt>.
+            // randomly choose one from whole cluster, ignore the provided predicate.
+            return selectRandom(1, excludeBookies, predicate, ensemble).get(0);
+        } else {
+            // if weight based selection is disabled, and there is no enough bookie from local rack,
+            // select bookies from the whole cluster and exclude the racks specified at <tt>excludeRacks</tt>.
+            return selectFromNetworkLocation(excludeRacks, excludeBookies, predicate, ensemble);
+        }
     }
-
 
     /**
      * It randomly selects a {@link BookieNode} that is not on the <i>excludeRacks</i> set, excluding the nodes in

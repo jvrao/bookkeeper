@@ -111,7 +111,8 @@ public class TestRackawareEnsemblePlacementPolicyUsingScript {
         addrs.add(addr4);
         repp.onClusterChanged(addrs, new HashSet<BookieSocketAddress>());
         // replace node under r2
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, new HashSet<>());
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, new HashSet<>(), true);
         assertEquals(addr3, replacedBookie);
     }
 
@@ -133,7 +134,8 @@ public class TestRackawareEnsemblePlacementPolicyUsingScript {
         // replace node under r2
         Set<BookieSocketAddress> excludedAddrs = new HashSet<BookieSocketAddress>();
         excludedAddrs.add(addr1);
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, excludedAddrs);
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, excludedAddrs, true);
 
         assertFalse(addr1.equals(replacedBookie));
         assertTrue(addr3.equals(replacedBookie) || addr4.equals(replacedBookie));
@@ -160,7 +162,8 @@ public class TestRackawareEnsemblePlacementPolicyUsingScript {
         excludedAddrs.add(addr3);
         excludedAddrs.add(addr4);
         try {
-            repp.replaceBookie(1, 1, 1, null, new HashSet<BookieSocketAddress>(), addr2, excludedAddrs);
+            repp.replaceBookie(1, 1, 1,
+                    null, new HashSet<BookieSocketAddress>(), addr2, excludedAddrs, true);
             fail("Should throw BKNotEnoughBookiesException when there is not enough bookies");
         } catch (BKNotEnoughBookiesException bnebe) {
             // should throw not BKNotEnoughBookiesException
@@ -197,7 +200,8 @@ public class TestRackawareEnsemblePlacementPolicyUsingScript {
         // replace node under r2
         Set<BookieSocketAddress> excludedAddrs = new HashSet<BookieSocketAddress>();
         excludedAddrs.add(addr1);
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, excludedAddrs);
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, excludedAddrs, true);
 
         assertFalse(addr1.equals(replacedBookie));
         assertFalse(addr2.equals(replacedBookie));
@@ -235,7 +239,8 @@ public class TestRackawareEnsemblePlacementPolicyUsingScript {
         // replace node under r2
         Set<BookieSocketAddress> excludedAddrs = new HashSet<BookieSocketAddress>();
         excludedAddrs.add(addr1);
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, excludedAddrs);
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, excludedAddrs, true);
 
         assertFalse(addr1.equals(replacedBookie));
         assertFalse(addr2.equals(replacedBookie));

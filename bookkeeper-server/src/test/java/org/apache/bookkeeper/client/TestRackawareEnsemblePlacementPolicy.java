@@ -391,7 +391,8 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
         addrs.add(addr4);
         repp.onClusterChanged(addrs, new HashSet<BookieSocketAddress>());
         // replace node under r2
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, new HashSet<>());
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, new HashSet<>(), false);
         assertEquals(addr3, replacedBookie);
     }
 
@@ -416,7 +417,8 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
         // replace node under r2
         Set<BookieSocketAddress> excludedAddrs = new HashSet<BookieSocketAddress>();
         excludedAddrs.add(addr1);
-        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, excludedAddrs);
+        BookieSocketAddress replacedBookie = repp.replaceBookie(1, 1, 1,
+                null, new HashSet<>(), addr2, excludedAddrs, true);
 
         assertFalse(addr1.equals(replacedBookie));
         assertTrue(addr3.equals(replacedBookie) || addr4.equals(replacedBookie));
@@ -446,7 +448,8 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
         excludedAddrs.add(addr3);
         excludedAddrs.add(addr4);
         try {
-            repp.replaceBookie(1, 1, 1, null, new HashSet<BookieSocketAddress>(), addr2, excludedAddrs);
+            repp.replaceBookie(1, 1, 1,
+                    null, new HashSet<BookieSocketAddress>(), addr2, excludedAddrs, true);
             fail("Should throw BKNotEnoughBookiesException when there is not enough bookies");
         } catch (BKNotEnoughBookiesException bnebe) {
             // should throw not enou
@@ -479,7 +482,8 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
             1, 1, 1 , null,
             ensembleBookies,
             addr4,
-            new HashSet<>());
+            new HashSet<>(),
+           true);
         assertEquals(addr1, replacedBookie);
     }
 
@@ -644,7 +648,7 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
         BookieSocketAddress replacedBookie;
         for (int i = 0; i < numTries; i++) {
             // replace node under r2
-            replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, new HashSet<>());
+            replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, new HashSet<>(), true);
             assertTrue("replaced : " + replacedBookie, addr3.equals(replacedBookie) || addr4.equals(replacedBookie));
             selectionCounts.put(replacedBookie, selectionCounts.get(replacedBookie) + 1);
         }
@@ -700,7 +704,8 @@ public class TestRackawareEnsemblePlacementPolicy extends TestCase {
             // addr2 is on /r2 and this is the only one on this rack. So the replacement
             // will come from other racks. However, the weight should be honored in such
             // selections as well
-            replacedBookie = repp.replaceBookie(1, 1, 1, null, new HashSet<>(), addr2, new HashSet<>());
+            replacedBookie = repp.replaceBookie(1, 1, 1,
+                    null, new HashSet<>(), addr2, new HashSet<>(), true);
             assertTrue(addr1.equals(replacedBookie) || addr3.equals(replacedBookie) || addr4.equals(replacedBookie));
             selectionCounts.put(replacedBookie, selectionCounts.get(replacedBookie) + 1);
         }

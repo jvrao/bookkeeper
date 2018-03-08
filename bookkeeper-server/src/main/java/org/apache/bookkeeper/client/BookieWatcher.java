@@ -245,7 +245,7 @@ class BookieWatcher {
             existingAndQuarantinedBookies.addAll(quarantinedBookies.asMap().keySet());
             socketAddress = placementPolicy.replaceBookie(
                     ensembleSize, writeQuorumSize, ackQuorumSize, customMetadata,
-                    existingAndQuarantinedBookies, addr, excludeBookies);
+                    existingAndQuarantinedBookies, addr, excludeBookies, true);
             replaceBookieTimer.registerSuccessfulEvent(MathUtils.nowInNano() - startTime, TimeUnit.NANOSECONDS);
         } catch (BKNotEnoughBookiesException e) {
             if (log.isDebugEnabled()) {
@@ -253,7 +253,7 @@ class BookieWatcher {
             }
             socketAddress = placementPolicy.replaceBookie(
                     ensembleSize, writeQuorumSize, ackQuorumSize, customMetadata,
-                    new HashSet<BookieSocketAddress>(existingBookies), addr, excludeBookies);
+                    new HashSet<BookieSocketAddress>(existingBookies), addr, excludeBookies, true);
             replaceBookieTimer.registerFailedEvent(MathUtils.nowInNano() - startTime, TimeUnit.NANOSECONDS);
         }
         return socketAddress;

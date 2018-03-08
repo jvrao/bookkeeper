@@ -102,17 +102,17 @@ public class RackawareEnsemblePlacementPolicy extends RackawareEnsemblePlacement
     @Override
     public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize,
             Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble,
-            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies)
+            BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies, boolean replicationContext)
             throws BKException.BKNotEnoughBookiesException {
        try {
             return super.replaceBookie(ensembleSize, writeQuorumSize, ackQuorumSize, customMetadata,
-                    currentEnsemble, bookieToReplace, excludeBookies);
+                    currentEnsemble, bookieToReplace, excludeBookies, replicationContext);
         } catch (BKException.BKNotEnoughBookiesException bnebe) {
             if (slave == null) {
                 throw bnebe;
             } else {
                 return slave.replaceBookie(ensembleSize, writeQuorumSize, ackQuorumSize, customMetadata,
-                        currentEnsemble, bookieToReplace, excludeBookies);
+                        currentEnsemble, bookieToReplace, excludeBookies, replicationContext);
             }
         }
     }
