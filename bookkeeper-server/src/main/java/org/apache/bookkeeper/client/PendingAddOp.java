@@ -241,6 +241,13 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
                 entryId, lh.lastAddConfirmed, currentLedgerLength,
                 payload);
 
+        // We are about to send. Check if we need to make an ensemble change
+        // becasue of delayed write errors
+        Map<Integer, BookieSocketAddress> delayedWriteFailedBookies = lh.getDelayedWriteFailedBookies();
+        if (!delayedWriteFailedBookies.isEmpty()) {
+            lh.handleBookieFailure(delayedWriteFailedBookies, true);
+            delayedWriteFailedBookies.clear();
+        }
         // Iterate over set and trigger the sendWriteRequests
         DistributionSchedule.WriteSet writeSet = lh.distributionSchedule.getWriteSet(entryId);
         try {
@@ -276,6 +283,10 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
                 // Got an error after satisfying AQ. This means we are under replicated at the create itself.
                 // Update the stat to reflect it.
                 addOpUrCounter.inc();
+                LOG.warn("Delayed write failure ({}, {}) to bookie{}", ledgerId, entryId, addr);
+                if (!lh.bk.delayEnsembleChange) {
+                    lh.getDelayedWriteFailedBookies().put(bookieIndex, addr);
+                }
             }
             // even the add operation is completed, but because we don't reset completed flag back to false when
             // #unsetSuccessAndSendWriteRequest doesn't break ack quorum constraint. we still have current pending

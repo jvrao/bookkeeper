@@ -117,6 +117,7 @@ public class LedgerHandle implements WriteHandle {
     ScheduledFuture<?> timeoutFuture = null;
 
     final long waitForWriteSetMs;
+    Map<Integer, BookieSocketAddress> delayedWriteFailedBookies;
 
     /**
      * Invalid entry id. This value is returned from methods which
@@ -149,6 +150,10 @@ public class LedgerHandle implements WriteHandle {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public Map<Integer, BookieSocketAddress> getDelayedWriteFailedBookies() {
+        return delayedWriteFailedBookies;
     }
 
     LedgerHandle(BookKeeper bk, long ledgerId, LedgerMetadata metadata,
@@ -1748,8 +1753,11 @@ public class LedgerHandle implements WriteHandle {
         }
         return new EnsembleInfo(newEnsemble, failedBookies, replacedBookies);
     }
-
     void handleBookieFailure(final Map<Integer, BookieSocketAddress> failedBookies) {
+        handleBookieFailure(failedBookies, false);
+    }
+
+    void handleBookieFailure(final Map<Integer, BookieSocketAddress> failedBookies, boolean bestEffort) {
         int curBlockAddCompletions = blockAddCompletions.incrementAndGet();
         if (bk.getDisableEnsembleChangeFeature().isAvailable()) {
             blockAddCompletions.decrementAndGet();
@@ -1757,19 +1765,23 @@ public class LedgerHandle implements WriteHandle {
                 LOG.debug("Ensemble change is disabled. Retry sending to failed bookies {} for ledger {}.",
                     failedBookies, ledgerId);
             }
-            unsetSuccessAndSendWriteRequest(failedBookies.keySet());
+            if (!bestEffort) {
+                unsetSuccessAndSendWriteRequest(failedBookies.keySet());
+            }
             return;
         }
 
         int curNumEnsembleChanges = numEnsembleChanges.incrementAndGet();
 
         // when the ensemble changes are too frequent, close handle
-        if (curNumEnsembleChanges > maxAllowedEnsembleChanges){
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Ledger {} reaches max allowed ensemble change number {}",
-                        ledgerId, maxAllowedEnsembleChanges);
+        if (curNumEnsembleChanges > maxAllowedEnsembleChanges) {
+            if (!bestEffort) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Ledger {} reaches max allowed ensemble change number {}",
+                            ledgerId, maxAllowedEnsembleChanges);
+                }
+                handleUnrecoverableErrorDuringAdd(WriteException);
             }
-            handleUnrecoverableErrorDuringAdd(WriteException);
             return;
         }
         synchronized (metadata) {
@@ -1785,8 +1797,10 @@ public class LedgerHandle implements WriteHandle {
                 }
                 writeLedgerConfig(new ChangeEnsembleCb(ensembleInfo, curBlockAddCompletions, curNumEnsembleChanges));
             } catch (BKException.BKNotEnoughBookiesException e) {
-                LOG.error("Could not get additional bookie to remake ensemble, closing ledger: {}", ledgerId);
-                handleUnrecoverableErrorDuringAdd(e.getCode());
+                if (!bestEffort) {
+                    LOG.error("Could not get additional bookie to remake ensemble, closing ledger: {}", ledgerId);
+                    handleUnrecoverableErrorDuringAdd(e.getCode());
+                }
                 return;
             }
         }
