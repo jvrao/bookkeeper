@@ -31,6 +31,7 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.EnumSet;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -77,6 +78,8 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
     boolean callbackTriggered;
     boolean hasRun;
     EnumSet<WriteFlag> writeFlags;
+    Map <Integer, BookieSocketAddress> sentBookies;
+
     boolean allowFailFast = false;
     List<BookieSocketAddress> ensemble;
 
@@ -105,7 +108,7 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
         op.allowFailFast = false;
         op.qwcLatency = 0;
         op.writeFlags = writeFlags;
-
+        op.sentBookies = new HashMap<Integer, BookieSocketAddress>();
         return op;
     }
 
@@ -141,6 +144,7 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
         clientCtx.getBookieClient().addEntry(ensemble.get(bookieIndex),
                                              lh.ledgerId, lh.ledgerKey, entryId, toSend, this, bookieIndex,
                                              flags, allowFailFast, lh.writeFlags);
+        sentBookies.putIfAbsent(bookieIndex, ensemble.get(bookieIndex));
         ++pendingWriteRequests;
     }
 
@@ -195,7 +199,7 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
         // again, and no one triggers #sendAddSuccessCallbacks. Consequently, k never
         // completes.
         //
-        // We call sendAddSuccessCallback when unsetting t cover this case.
+        // We call sendAddSuccessCallback when unsetting to cover this case.
         DistributionSchedule.WriteSet writeSet = lh.distributionSchedule.getWriteSet(entryId);
         try {
             if (!writeSet.contains(bookieIndex)) {
@@ -223,7 +227,21 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
             completed = false;
         }
 
-        sendWriteRequest(ensemble, bookieIndex);
+        // In the case of ensemble change initiated by delayedWriteFailedBookies
+        // we must have changed the ensemble before sending the
+        // write to bookies. In that case we don't need to send the write again.
+        // If the ensemble change is caused by the bookie failure during write
+        // we may have to send the write to new bookie to satisfy write quorum replicas.
+        if (!ensemble.get(bookieIndex).equals(sentBookies.get(bookieIndex))) {
+            sendWriteRequest(bookieIndex);
+        }
+
+        // Check if we can send the success without waiting for the
+        // write we just send.
+        if (completed) {
+            // We must have met the ack quorum requirements
+            lh.sendAddSuccessCallbacks();
+        }
     }
 
     /**
@@ -250,9 +268,10 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
         payload = null;
 
         // We are about to send. Check if we need to make an ensemble change
-        // becasue of delayed write errors
+        // because of delayed write errors
         Map <Integer, BookieSocketAddress> delayedWriteFailedBookies = lh.getDelayedWriteFailedBookies();
         if (!delayedWriteFailedBookies.isEmpty()) {
+            LOG.info("Attempting ensemble change due to DelayedWriteFailures on bokies:{}", delayedWriteFailedBookies);
             lh.handleDelayedWriteBookieFailure();
         }
         // Iterate over set and trigger the sendWriteRequests
@@ -293,6 +312,8 @@ class PendingAddOp extends SafeRunnable implements WriteCallback {
                 clientCtx.getClientStats().getAddOpUrCounter().inc();
                 if (!clientCtx.getConf().disableEnsembleChangeFeature.isAvailable()
                         && !clientCtx.getConf().delayEnsembleChange) {
+                    LOG.info("Write failed, adding bookie to DelayedWriteFailedList LedgerID: {} entryId: {} bookie: {}",
+                            ledgerId, entryId, addr);
                     lh.getDelayedWriteFailedBookies().putIfAbsent(bookieIndex, addr);
                 }
             }
